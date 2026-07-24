@@ -150,14 +150,9 @@
       <div class="wechat-capsule-bar">
         <div class="wechat-title-group">
           <span class="wechat-space-name" id="display-space-name" onclick="openRenameSpaceModal()" title="点击修改空间名称">AAA YVR 办事处 <i data-lucide="edit-3" style="width:12px;height:12px;"></i></span>
-          <span class="wechat-space-code" onclick="showInviteModal()" title="点击查看邀请码">
-            <i data-lucide="qr-code"></i> <span id="display-invite-code">AAA123</span>
-          </span>
         </div>
         <div class="wechat-capsule">
-          <button class="capsule-btn" onclick="showInviteModal()"><i data-lucide="more-horizontal"></i></button>
-          <div class="capsule-divider"></div>
-          <button class="capsule-btn" onclick="showCreateSpaceModal()"><i data-lucide="circle-dot"></i></button>
+          <button class="capsule-btn" onclick="openRenameSpaceModal()"><i data-lucide="edit-3"></i></button>
         </div>
       </div>
 
@@ -166,18 +161,6 @@
 
         <!-- TAB 1: 首页 Dashboard -->
         <section id="tab-dashboard" class="tab-view active">
-          <!-- Roommate Quick Status Header -->
-          <div class="ios-card status-header-card">
-            <div class="card-header-clean">
-              <span class="card-title"><i data-lucide="users"></i> 室友实时状态</span>
-              <button class="text-link-btn" onclick="switchTab('status')">更新状态 <i data-lucide="chevron-right"></i></button>
-            </div>
-            
-            <div class="member-status-grid" id="dashboard-status-grid">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
-
           <!-- Financial Snapshot Banner -->
           <div class="ios-card financial-banner-card" onclick="switchTab('finance')">
             <div class="fin-banner-top">
@@ -192,6 +175,18 @@
             </div>
             <div class="fin-stats-row" id="dash-member-spend-row">
               <!-- Dynamically populated member spends -->
+            </div>
+          </div>
+
+          <!-- Roommate Quick Status Header -->
+          <div class="ios-card status-header-card">
+            <div class="card-header-clean">
+              <span class="card-title"><i data-lucide="users"></i> 室友实时状态</span>
+              <button class="text-link-btn" onclick="switchTab('status')">更新状态 <i data-lucide="chevron-right"></i></button>
+            </div>
+            
+            <div class="member-status-grid" id="dashboard-status-grid">
+              <!-- Dynamically populated -->
             </div>
           </div>
 
@@ -357,9 +352,8 @@
               <span>空间名称</span>
               <strong id="profile-space-name">AAA YVR 办事处</strong>
             </div>
-            <div class="space-detail-row">
-              <span>邀请码</span>
-              <span class="code-badge" onclick="copyInviteCode()" id="profile-invite-code">AAA123 <i data-lucide="copy"></i></span>
+            <div class="space-detail-row" id="profile-members-list">
+              <!-- 成员列表（由 JS 渲染） -->
             </div>
             <div class="space-detail-row">
               <span>空间成员</span>
@@ -368,7 +362,6 @@
 
             <div class="space-btn-group">
               <button class="ios-secondary-btn" onclick="openAddMemberModal()"><i data-lucide="user-plus"></i> 添加/自定义室友</button>
-              <button class="ios-secondary-btn" onclick="showInviteModal()"><i data-lucide="share"></i> 邀请室友加入</button>
             </div>
           </div>
 
@@ -584,6 +577,15 @@
           <textarea id="notice-content" class="ios-textarea" placeholder="例如: 垃圾车周四早上来，请周三晚上倒垃圾" rows="3" required></textarea>
         </div>
 
+        <div class="form-group">
+          <label>重要程度</label>
+          <select id="notice-importance" class="ios-input">
+            <option value="low">低 (绿)</option>
+            <option value="medium" selected>中 (黄)</option>
+            <option value="high">高 (红)</option>
+          </select>
+        </div>
+
         <div class="modal-actions">
           <button type="button" class="ios-secondary-btn" onclick="closeModal('modal-add-notice')">取消</button>
           <button type="submit" class="ios-primary-btn">发布公告</button>
@@ -701,60 +703,6 @@
     </div>
   </div>
 
-  <!-- Modal 10: Invite / Space Code -->
-  <div class="ios-modal-backdrop" id="modal-invite">
-    <div class="ios-modal-card text-center">
-      <div class="modal-header">
-        <h3>邀请室友加入 🔑</h3>
-        <button class="modal-close-btn" onclick="closeModal('modal-invite')"><i data-lucide="x"></i></button>
-      </div>
-      <div class="invite-card-inner">
-        <p>让室友在微信小程序中输入以下邀请码即可加入：</p>
-        <div class="invite-code-big" id="modal-invite-code-display">AAA123</div>
-        <p class="invite-sub">当前空间：<strong id="modal-space-name-display">AAA YVR 办事处</strong></p>
-      </div>
-      <div class="modal-actions">
-        <button class="ios-primary-btn full" onclick="copyInviteCode()">复制邀请码 & 微信分享</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal 11: Create / Join Space -->
-  <div class="ios-modal-backdrop" id="modal-create-space">
-    <div class="ios-modal-card">
-      <div class="modal-header">
-        <h3>空间管理 🏠</h3>
-        <button class="modal-close-btn" onclick="closeModal('modal-create-space')"><i data-lucide="x"></i></button>
-      </div>
-
-      <div class="ios-segment-control mb-4">
-        <button class="segment-btn active" id="tab-btn-create" onclick="switchSpaceTab('create')">创建新空间</button>
-        <button class="segment-btn" id="tab-btn-join" onclick="switchSpaceTab('join')">加入现有空间</button>
-      </div>
-
-      <!-- Create Form -->
-      <form id="form-create-space" onsubmit="handleCreateSpace(event)">
-        <div class="form-group">
-          <label>空间名称</label>
-          <input type="text" id="new-space-name" class="ios-input" placeholder="例如: AAA YVR 办事处" value="AAA YVR 办事处" required>
-        </div>
-        <div class="modal-actions">
-          <button type="submit" class="ios-primary-btn full">立即创建并生成邀请码</button>
-        </div>
-      </form>
-
-      <!-- Join Form -->
-      <form id="form-join-space" onsubmit="handleJoinSpace(event)" style="display:none;">
-        <div class="form-group">
-          <label>请输入6位邀请码</label>
-          <input type="text" id="join-invite-code" class="ios-input code-input" placeholder="例如: AAA123" required>
-        </div>
-        <div class="modal-actions">
-          <button type="submit" class="ios-primary-btn full">加入该空间</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- WeChat Notification Toast Simulator -->
   <div class="wechat-toast" id="wechat-toast">

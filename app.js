@@ -315,7 +315,6 @@ function renderAll() {
   // Update Header UI
   document.getElementById("top-brand-title").textContent = state.household.name;
   document.getElementById("display-space-name").innerHTML = `${state.household.name} <i data-lucide="edit-3" style="width:12px;height:12px;"></i>`;
-  document.getElementById("display-invite-code").textContent = state.household.inviteCode;
 
   // Render User Switcher Select Options
   const userSelect = document.getElementById("user-role-select");
@@ -368,6 +367,18 @@ function renderDashboard(fin) {
   const heroText = document.getElementById("dash-settlement-text");
   const heroSubtext = document.getElementById("dash-settlement-subtext");
   const badge = document.getElementById("dash-fin-badge");
+  // ensure dash-fin-badge exists after DOM edits (some UI may hide invite)
+  if (!badge) {
+    // create a lightweight fallback badge in the banner if missing
+    const hero = document.getElementById('dash-balance-hero');
+    if (hero) {
+      const b = document.createElement('span');
+      b.id = 'dash-fin-badge';
+      b.className = 'ios-badge accent';
+      b.textContent = '已自动平衡';
+      hero.parentElement.querySelector('.fin-banner-top')?.appendChild(b);
+    }
+  }
 
   const members = state.household.members;
   if (members.length >= 2) {
@@ -695,7 +706,11 @@ function renderStatusAndNoticesTab() {
         ${state.statusOptions.length > 1 ? `<span class="status-chip-del" onclick="event.stopPropagation(); deleteStatus('${st}')" title="删除该状态">×</span>` : ''}
       </button>
     </div>
-  `).join("");
+  `).join("") + `
+    <div class="status-chip-wrapper">
+      <button class="status-chip add" onclick="openAddCustomStatusModal()" title="添加状态">＋</button>
+    </div>
+  `;
 
   // Time picker input enable state
   const timeInput = document.getElementById("return-time-input");
@@ -725,7 +740,7 @@ function renderStatusAndNoticesTab() {
     noticeList.innerHTML = `<div style="text-align:center;padding:16px;color:#8E8E93;font-size:13px;">暂无任何告示</div>`;
   } else {
     noticeList.innerHTML = state.notices.map(n => `
-      <div class="notice-card-item">
+      <div class="notice-card-item" style="border-left:4px solid ${n.level === 'high' ? '#FF3B30' : n.level === 'low' ? '#34C759' : '#FFCC00'};">
         <div class="notice-header">
           <span>${n.creator} • ${n.time}</span>
           <button class="notice-delete-btn" onclick="deleteNotice('${n.id}')"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
@@ -789,8 +804,16 @@ function renderProfileTab() {
   document.getElementById("profile-nickname").textContent = state.currentUser;
   document.getElementById("profile-role-badge").textContent = state.currentUser === state.household.admin ? "Household Admin (空间创建人)" : "Roommate Member (成员)";
   document.getElementById("profile-space-name").textContent = state.household.name;
-  document.getElementById("profile-invite-code").innerHTML = `${state.household.inviteCode} <i data-lucide="copy" style="width:12px;height:12px;"></i>`;
   document.getElementById("profile-members-count").textContent = `${state.household.members.length} 人 (${state.household.members.join(", ")})`;
+  // render member list with delete buttons
+  const membersList = document.getElementById('profile-members-list');
+  membersList.innerHTML = state.household.members.map(m => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F2F2F7;">
+      <div style="display:flex;gap:8px;align-items:center;"><div style="width:28px;height:28px;border-radius:50%;background:#E5E5EA;display:flex;align-items:center;justify-content:center;font-weight:700;">${m[0]}</div><div>${m}${m===state.household.admin?'<span style="font-size:11px;color:#8E8E93;margin-left:6px">(管理员)</span>':''}</div></div>
+      ${m === state.household.admin ? '<button class="ios-secondary-btn" disabled style="opacity:0.6">管理员</button>' : `<button class="ios-secondary-btn" onclick="deleteMember('${m}')">删除</button>`}
+    </div>
+  `).join('');
+  replaceIconsWithEmoji();
 }
 
 // Modal Controllers
@@ -935,12 +958,6 @@ function openRenameMemberModal() {
 }
 function openAddMemberModal() { openModal("modal-add-member"); }
 
-function showInviteModal() {
-  document.getElementById("modal-invite-code-display").textContent = state.household.inviteCode;
-  document.getElementById("modal-space-name-display").textContent = state.household.name;
-  openModal("modal-invite");
-}
-function showCreateSpaceModal() { openModal("modal-create-space"); }
 
 // Forms Handlers
 function handleAddExpenseSubmit(e) {
@@ -1004,6 +1021,7 @@ function handleAddTaskSubmit(e) {
 function handleAddNoticeSubmit(e) {
   e.preventDefault();
   const content = document.getElementById("notice-content").value;
+  const importance = document.getElementById("notice-importance") ? document.getElementById("notice-importance").value : 'medium';
   const now = new Date();
   const timeStr = `${now.getMonth()+1}月${now.getDate()}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
@@ -1011,7 +1029,8 @@ function handleAddNoticeSubmit(e) {
     id: "notice_" + Date.now(),
     creator: state.currentUser,
     time: timeStr,
-    content: "📢 " + content
+    content: "📢 " + content,
+    level: importance
   };
 
   state.notices.unshift(newNotice);
@@ -1092,6 +1111,30 @@ function handleAddMemberSubmit(e) {
   }
 }
 
+// Delete member with safe migrations for tasks & expenses
+function deleteMember(name) {
+  if (!confirm(`确认要删除室友: ${name} 吗？此操作会将其负责人任务改为 '任何人' 并从分摊中移除。`)) return;
+  // remove from members list
+  state.household.members = state.household.members.filter(m => m !== name);
+  // remove status
+  if (state.membersStatus[name]) delete state.membersStatus[name];
+
+  // Migrate tasks: unassign tasks previously assigned to deleted member
+  state.tasks.forEach(t => {
+    if (t.assignee === name) t.assignee = '任何人';
+  });
+
+  // Clean up expenses: remove from participants, and if payer removed, choose fallback payer
+  state.expenses.forEach(e => {
+    e.participants = (e.participants || []).filter(p => p !== name);
+    if (e.payer === name) e.payer = state.household.members[0] || state.currentUser || '';
+    if (!e.participants || e.participants.length === 0) e.participants = [e.payer];
+  });
+
+  saveState();
+  showWeChatToast('已删除成员', `${name} 已从空间中移除`);
+}
+
 function switchSpaceTab(type) {
   const createForm = document.getElementById("form-create-space");
   const joinForm = document.getElementById("form-join-space");
@@ -1111,34 +1154,8 @@ function switchSpaceTab(type) {
   }
 }
 
-function handleCreateSpace(e) {
-  e.preventDefault();
-  const name = document.getElementById("new-space-name").value;
-  const newCode = "AAA" + Math.floor(100 + Math.random() * 900);
-  state.household.name = name;
-  state.household.inviteCode = newCode;
-  saveState();
-  closeModal("modal-create-space");
-  showWeChatToast("新空间创建成功 🏠", `已创建 ${name}，邀请码: ${newCode}`);
-}
 
-function handleJoinSpace(e) {
-  e.preventDefault();
-  const code = document.getElementById("join-invite-code").value.trim();
-  if (!code) return;
-  state.household.inviteCode = code.toUpperCase();
-  saveState();
-  closeModal("modal-create-space");
-  showWeChatToast("已加入空间 🔑", `成功加入邀请码为 ${code.toUpperCase()} 的家庭空间`);
-}
 
-function copyInviteCode() {
-  navigator.clipboard.writeText(state.household.inviteCode).then(() => {
-    showWeChatToast("已复制到剪贴板 📋", `邀请码 ${state.household.inviteCode} 已复制，可直接粘贴发给室友`);
-  }).catch(() => {
-    showWeChatToast("邀请码", state.household.inviteCode);
-  });
-}
 
 function simulateWeChatSubscribe() {
   showWeChatToast("微信订阅成功 🔔", "已开启室友晚回、家务到期与催催消息提醒");
