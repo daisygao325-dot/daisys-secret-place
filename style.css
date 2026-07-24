@@ -1,0 +1,132 @@
+/**
+ * Service Worker — AAA YVR 办事处 (Roommate Management PWA)
+ * Strategy:
+ *  - App shell (HTML/CSS/JS/manifest/icons): cache-first, precached on install.
+ *  - Cross-origin assets (Google Fonts, Lucide icons CDN): cache-first with
+ *    runtime caching, so once loaded once they keep working offline.
+ *  - Navigation requests fall back to the cached app shell if the network
+ *    is unavailable, so the app still opens with no connection.
+ */
+
+const VERSION = "v1.0.0";
+const STATIC_CACHE = `aaa-yvr-static-${VERSION}`;
+const RUNTIME_CACHE = `aaa-yvr-runtime-${VERSION}`;
+
+// Everything needed for the app shell to render and run fully offline.
+const PRECACHE_ASSETS = [
+  "./",
+  "./index.html",
+  "./style.css",
+  "./app.js",
+  "./manifest.webmanifest",
+  "./icons/icon-16.png",
+  "./icons/icon-32.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-192.png",
+  "./icons/icon-maskable-512.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/splash-iphone-se-640x1136.png",
+  "./icons/splash-iphone-8-750x1334.png",
+  "./icons/splash-iphone-xr-11-828x1792.png",
+  "./icons/splash-iphone-x-xs-11pro-12mini-13mini-1125x2436.png",
+  "./icons/splash-iphone-12-13-14-1170x2532.png",
+  "./icons/splash-iphone-14pro-15-16-1179x2556.png",
+  "./icons/splash-iphone-xsmax-11promax-1242x2688.png",
+  "./icons/splash-iphone-12-13-14-promax-plus-1284x2778.png",
+  "./icons/splash-iphone-14-15-16-promax-1290x2796.png",
+  "./icons/splash-iphone-16pro-1206x2622.png",
+  "./icons/splash-iphone-16pro-max-1320x2868.png"
+];
+
+// Third-party origins we opportunistically cache at runtime (fonts + icon lib).
+const RUNTIME_ORIGINS = [
+  "https://fonts.googleapis.com",
+  "https://fonts.gstatic.com",
+  "https://unpkg.com"
+];
+
+// ---------- INSTALL: precache the app shell ----------
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(STATIC_CACHE)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ---------- ACTIVATE: clean up old cache versions ----------
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
+          .map((key) => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
+// ---------- FETCH: serve from cache, fall back to network, then offline shell ----------
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  const isRuntimeOrigin = RUNTIME_ORIGINS.some((origin) => request.url.startsWith(origin));
+
+  // Navigations (opening/refreshing the app): try network, fall back to cached shell.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put("./index.html", copy));
+          return response;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  // Same-origin static assets: cache-first, update cache in background.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const copy = response.clone();
+              caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+            }
+            return response;
+          })
+          .catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Cross-origin CDN assets (fonts, Lucide icons): cache-first, cached at runtime.
+  if (isRuntimeOrigin) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const copy = response.clone();
+              caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
+            }
+            return response;
+          })
+          .catch(() => cached);
+      })
+    );
+    return;
+  }
+
+  // Anything else: just let the network handle it.
+});
