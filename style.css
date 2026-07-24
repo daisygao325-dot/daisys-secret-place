@@ -1,132 +1,1325 @@
-/**
- * Service Worker — AAA YVR 办事处 (Roommate Management PWA)
- * Strategy:
- *  - App shell (HTML/CSS/JS/manifest/icons): cache-first, precached on install.
- *  - Cross-origin assets (Google Fonts, Lucide icons CDN): cache-first with
- *    runtime caching, so once loaded once they keep working offline.
- *  - Navigation requests fall back to the cached app shell if the network
- *    is unavailable, so the app still opens with no connection.
- */
+/* iOS System Design Tokens */
+:root {
+  --ios-bg-group: #F2F2F7;
+  --ios-bg-card: #FFFFFF;
+  --ios-bg-blur: rgba(255, 255, 255, 0.82);
+  --ios-text-primary: #1C1C1E;
+  --ios-text-secondary: #8E8E93;
+  --ios-text-tertiary: #C7C7CC;
+  
+  --ios-blue: #007AFF;
+  --ios-green: #34C759;
+  --ios-orange: #FF9500;
+  --ios-red: #FF3B30;
+  --ios-purple: #AF52DE;
+  --ios-teal: #30B0C7;
+  --ios-gray-light: #E5E5EA;
 
-const VERSION = "v1.0.0";
-const STATIC_CACHE = `aaa-yvr-static-${VERSION}`;
-const RUNTIME_CACHE = `aaa-yvr-runtime-${VERSION}`;
+  --ios-radius-lg: 20px;
+  --ios-radius-md: 14px;
+  --ios-radius-sm: 10px;
+  
+  --ios-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.04);
+  --ios-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --ios-shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.12);
 
-// Everything needed for the app shell to render and run fully offline.
-const PRECACHE_ASSETS = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./app.js",
-  "./manifest.webmanifest",
-  "./icons/icon-16.png",
-  "./icons/icon-32.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-maskable-192.png",
-  "./icons/icon-maskable-512.png",
-  "./icons/apple-touch-icon.png",
-  "./icons/splash-iphone-se-640x1136.png",
-  "./icons/splash-iphone-8-750x1334.png",
-  "./icons/splash-iphone-xr-11-828x1792.png",
-  "./icons/splash-iphone-x-xs-11pro-12mini-13mini-1125x2436.png",
-  "./icons/splash-iphone-12-13-14-1170x2532.png",
-  "./icons/splash-iphone-14pro-15-16-1179x2556.png",
-  "./icons/splash-iphone-xsmax-11promax-1242x2688.png",
-  "./icons/splash-iphone-12-13-14-promax-plus-1284x2778.png",
-  "./icons/splash-iphone-14-15-16-promax-1290x2796.png",
-  "./icons/splash-iphone-16pro-1206x2622.png",
-  "./icons/splash-iphone-16pro-max-1320x2868.png"
-];
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
 
-// Third-party origins we opportunistically cache at runtime (fonts + icon lib).
-const RUNTIME_ORIGINS = [
-  "https://fonts.googleapis.com",
-  "https://fonts.gstatic.com",
-  "https://unpkg.com"
-];
+/* Reset & Global Base */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  -webkit-tap-highlight-color: transparent;
+}
 
-// ---------- INSTALL: precache the app shell ----------
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
-  );
-});
+body.ios-body {
+  background: #EAEBED;
+  color: var(--ios-text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-// ---------- ACTIVATE: clean up old cache versions ----------
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
-          .map((key) => caches.delete(key))
-      )
-    ).then(() => self.clients.claim())
-  );
-});
+/* Outer Desktop Wrapper & Nav */
+.app-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
 
-// ---------- FETCH: serve from cache, fall back to network, then offline shell ----------
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
+.top-nav-bar {
+  width: 100%;
+  max-width: 960px;
+  background: var(--ios-bg-card);
+  padding: 12px 20px;
+  border-radius: var(--ios-radius-md);
+  box-shadow: var(--ios-shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
 
-  const url = new URL(request.url);
-  const isRuntimeOrigin = RUNTIME_ORIGINS.some((origin) => request.url.startsWith(origin));
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-  // Navigations (opening/refreshing the app): try network, fall back to cached shell.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put("./index.html", copy));
-          return response;
-        })
-        .catch(() => caches.match("./index.html"))
-    );
-    return;
-  }
+.office-seal {
+  width: 36px;
+  height: 36px;
+  background: var(--ios-blue);
+  color: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
 
-  // Same-origin static assets: cache-first, update cache in background.
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const copy = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
-            }
-            return response;
-          })
-          .catch(() => cached);
-        return cached || fetchPromise;
-      })
-    );
-    return;
-  }
+.brand-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
 
-  // Cross-origin CDN assets (fonts, Lucide icons): cache-first, cached at runtime.
-  if (isRuntimeOrigin) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const copy = response.clone();
-              caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
-            }
-            return response;
-          })
-          .catch(() => cached);
-      })
-    );
-    return;
-  }
+.vibe-tag {
+  font-size: 12px;
+  background: #F2F2F7;
+  color: var(--ios-text-secondary);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
 
-  // Anything else: just let the network handle it.
-});
+.top-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-switcher-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ios-bg-group);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.user-switcher-pill select {
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  color: var(--ios-blue);
+  outline: none;
+  cursor: pointer;
+}
+
+.icon-btn-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ios-blue);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-btn-pill.secondary {
+  background: var(--ios-gray-light);
+  color: var(--ios-text-primary);
+}
+
+.icon-btn-pill:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Simulator Container (Phone Mode vs Desktop Wide Mode) */
+.simulator-container {
+  background: var(--ios-bg-group);
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Mode 1: Phone Simulator Frame */
+.simulator-container.mode-phone {
+  width: 412px;
+  height: 840px;
+  border-radius: 46px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25), 0 0 0 12px #1C1C1E;
+}
+
+/* Mode 2: Expanded Desktop View */
+.simulator-container.mode-desktop {
+  width: 100%;
+  max-width: 960px;
+  min-height: 780px;
+  border-radius: 24px;
+  box-shadow: var(--ios-shadow-lg);
+}
+
+/* Notch Bar in Phone Mode */
+.phone-notch-bar {
+  height: 44px;
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 100;
+  background: var(--ios-bg-group);
+}
+
+.phone-icons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* WeChat Mini Program Capsule Header */
+.wechat-capsule-bar {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--ios-bg-group);
+  z-index: 90;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.wechat-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wechat-space-name {
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wechat-space-name:hover {
+  color: var(--ios-blue);
+}
+
+.wechat-space-code {
+  font-size: 11px;
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--ios-blue);
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wechat-capsule {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 20px;
+  padding: 4px 8px;
+  height: 32px;
+  backdrop-filter: blur(10px);
+}
+
+.capsule-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ios-text-primary);
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+}
+
+.capsule-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.15);
+  margin: 0 4px;
+}
+
+/* Scrollable Main Screen Content */
+.screen-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: 90px;
+  scroll-behavior: smooth;
+}
+
+.screen-content::-webkit-scrollbar {
+  width: 4px;
+}
+.screen-content::-webkit-scrollbar-thumb {
+  background: #C7C7CC;
+  border-radius: 4px;
+}
+
+/* Tab Views */
+.tab-view {
+  display: none;
+  animation: fadeIn 0.25s ease forwards;
+}
+
+.tab-view.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* iOS Card Base System */
+.ios-card {
+  background: var(--ios-bg-card);
+  border-radius: var(--ios-radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--ios-shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.ios-card:hover {
+  box-shadow: var(--ios-shadow-md);
+}
+
+.card-header-clean {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ios-text-primary);
+}
+
+.text-link-btn {
+  background: none;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.icon-circle-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ios-bg-group);
+  border: none;
+  color: var(--ios-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.icon-circle-btn:hover {
+  background: var(--ios-blue);
+  color: white;
+}
+
+/* Roommate Realtime Status Grid */
+.member-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.member-status-tile {
+  background: var(--ios-bg-group);
+  padding: 12px;
+  border-radius: var(--ios-radius-md);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--ios-blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.tile-avatar.roommate {
+  background: var(--ios-teal);
+}
+
+.tile-avatar.custom {
+  background: var(--ios-purple);
+}
+
+.tile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.tile-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tile-status-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ios-text-primary);
+  margin-top: 2px;
+}
+
+.tile-time {
+  font-size: 10px;
+  color: var(--ios-text-secondary);
+  margin-top: 1px;
+}
+
+/* Financial Banner Hero Card */
+.financial-banner-card {
+  background: linear-gradient(135deg, #1C1C1E 0%, #2C2C2E 100%);
+  color: white;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.financial-banner-card::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  background: rgba(52, 199, 89, 0.15);
+  border-radius: 50%;
+  blur: 20px;
+}
+
+.fin-banner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.fin-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ios-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.ios-badge.accent {
+  background: var(--ios-green);
+  color: white;
+}
+
+.fin-balance-hero {
+  margin: 12px 0 16px 0;
+}
+
+.hero-amount {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #34C759;
+}
+
+.hero-amount.owe-alert {
+  color: #FF9500;
+}
+
+.hero-subtext {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
+}
+
+.fin-stats-row {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 10px 14px;
+  border-radius: var(--ios-radius-md);
+  overflow-x: auto;
+}
+
+.stat-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+}
+
+.stat-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 12px;
+}
+
+/* Chore Quick List */
+.task-quick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--ios-bg-group);
+  border-radius: var(--ios-radius-md);
+  transition: all 0.2s ease;
+}
+
+.task-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ios-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--ios-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ios-checkbox.checked {
+  background: var(--ios-green);
+  border-color: var(--ios-green);
+  color: white;
+}
+
+.task-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.task-name.done {
+  text-decoration: line-through;
+  color: var(--ios-text-secondary);
+}
+
+.task-assignee-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--ios-blue);
+}
+
+.task-assignee-badge.roommate {
+  background: rgba(48, 176, 199, 0.1);
+  color: var(--ios-teal);
+}
+
+.task-assignee-badge.anyone {
+  background: rgba(175, 82, 222, 0.12);
+  color: var(--ios-purple);
+}
+
+.nudge-btn {
+  background: none;
+  border: 1px solid var(--ios-orange);
+  color: var(--ios-orange);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nudge-btn:hover {
+  background: var(--ios-orange);
+  color: white;
+}
+
+/* Page Header & Titles */
+.ios-page-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.ios-page-title h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* iOS Segmented Controls */
+.ios-segment-control {
+  display: flex;
+  background: #E5E5EA;
+  padding: 3px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.segment-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ios-text-secondary);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.segment-btn.active {
+  background: white;
+  color: var(--ios-text-primary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Expense Item Cards */
+.expense-card-item {
+  background: var(--ios-bg-card);
+  padding: 14px 16px;
+  border-radius: var(--ios-radius-md);
+  margin-bottom: 10px;
+  box-shadow: var(--ios-shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exp-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.exp-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(0, 122, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.exp-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.exp-meta {
+  font-size: 12px;
+  color: var(--ios-text-secondary);
+  margin-top: 2px;
+}
+
+.exp-right {
+  text-align: right;
+}
+
+.exp-amount {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.exp-status-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ios-green);
+  margin-top: 2px;
+}
+
+.exp-status-tag.unsettled {
+  color: var(--ios-orange);
+}
+
+/* Split Amount Live Preview Box */
+.split-preview-box {
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--ios-blue);
+  padding: 10px 14px;
+  border-radius: var(--ios-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Status Selector Chips Grid */
+.status-options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.status-chip-wrapper {
+  position: relative;
+  display: flex;
+}
+
+.status-chip {
+  flex: 1;
+  background: var(--ios-bg-group);
+  border: 1.5px solid transparent;
+  padding: 10px 6px;
+  border-radius: var(--ios-radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ios-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-chip.selected {
+  background: rgba(0, 122, 255, 0.1);
+  border-color: var(--ios-blue);
+  color: var(--ios-blue);
+}
+
+.status-chip-del {
+  color: var(--ios-text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 50%;
+}
+
+.status-chip-del:hover {
+  color: var(--ios-red);
+  background: rgba(255, 59, 48, 0.1);
+}
+
+/* Category Manage List */
+.category-manage-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.cat-item-pill {
+  background: var(--ios-bg-group);
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-del-btn {
+  background: none;
+  border: none;
+  color: var(--ios-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.cat-del-btn:hover {
+  color: var(--ios-red);
+}
+
+.time-picker-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ios-bg-group);
+  padding: 10px 14px;
+  border-radius: var(--ios-radius-md);
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ios-input-inline {
+  border: none;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  color: var(--ios-blue);
+  outline: none;
+}
+
+.ios-input-inline:disabled {
+  opacity: 0.4;
+  background: #E5E5EA;
+}
+
+/* Full Status Cards */
+.full-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--ios-bg-group);
+  border-radius: var(--ios-radius-md);
+  margin-bottom: 8px;
+}
+
+.full-status-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.full-status-badge {
+  font-size: 14px;
+  font-weight: 700;
+  background: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* Notice Cards */
+.notice-card-item {
+  background: var(--ios-bg-group);
+  padding: 14px;
+  border-radius: var(--ios-radius-md);
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.notice-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ios-text-secondary);
+  margin-bottom: 6px;
+}
+
+.notice-content {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ios-text-primary);
+}
+
+.notice-delete-btn {
+  background: none;
+  border: none;
+  color: var(--ios-text-tertiary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.notice-delete-btn:hover {
+  color: var(--ios-red);
+}
+
+/* Profile / Settings Card */
+.profile-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #007AFF 0%, #0051A8 100%);
+  color: white;
+}
+
+.profile-avatar-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: white;
+  color: var(--ios-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.profile-info h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-role {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+}
+
+.space-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ios-bg-group);
+  font-size: 14px;
+}
+
+.code-badge {
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--ios-blue);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.space-btn-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ios-bg-group);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ios-text-primary);
+}
+
+/* iOS Style Bottom Tab Bar */
+.ios-tab-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  background: var(--ios-bg-blur);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: 10px;
+  z-index: 100;
+}
+
+.tab-item {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--ios-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  flex: 1;
+}
+
+.tab-item i {
+  width: 22px;
+  height: 22px;
+}
+
+.tab-item.active {
+  color: var(--ios-blue);
+}
+
+/* Buttons System */
+.ios-primary-btn {
+  background: var(--ios-blue);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: var(--ios-radius-md);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.ios-primary-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.ios-primary-btn.full {
+  width: 100%;
+}
+
+.ios-primary-btn.compact {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.ios-secondary-btn {
+  background: var(--ios-bg-group);
+  color: var(--ios-text-primary);
+  border: none;
+  padding: 10px 16px;
+  border-radius: var(--ios-radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Modals Backdrop & Cards */
+.ios-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.ios-modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ios-modal-card {
+  background: white;
+  width: 90%;
+  max-width: 420px;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: var(--ios-shadow-lg);
+  transform: scale(0.92);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-modal-backdrop.active .ios-modal-card {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.modal-close-btn {
+  background: var(--ios-bg-group);
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ios-text-secondary);
+}
+
+/* Inputs & Form Groups */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ios-text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.ios-input, .ios-textarea {
+  width: 100%;
+  background: var(--ios-bg-group);
+  border: 1.5px solid transparent;
+  padding: 11px 14px;
+  border-radius: var(--ios-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.ios-input:focus, .ios-textarea:focus {
+  background: white;
+  border-color: var(--ios-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.ios-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--ios-bg-group);
+  padding: 6px 12px;
+  border-radius: 10px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.invite-card-inner {
+  padding: 16px 0;
+}
+
+.invite-code-big {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--ios-blue);
+  margin: 12px 0;
+  background: var(--ios-bg-group);
+  padding: 12px;
+  border-radius: var(--ios-radius-md);
+}
+
+.invite-sub {
+  font-size: 13px;
+  color: var(--ios-text-secondary);
+}
+
+/* Filter Pills */
+.filter-pills-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pill-filter {
+  background: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ios-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--ios-shadow-sm);
+  white-space: nowrap;
+}
+
+.pill-filter.active {
+  background: var(--ios-blue);
+  color: white;
+}
+
+/* Activity Timeline */
+.activity-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ios-bg-group);
+}
+
+.timeline-time {
+  font-size: 11px;
+  color: var(--ios-text-secondary);
+  font-weight: 500;
+}
+
+.timeline-text {
+  font-weight: 600;
+}
+
+/* WeChat Notification Toast */
+.wechat-toast {
+  position: fixed;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28, 28, 30, 0.92);
+  backdrop-filter: blur(20px);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transition: top 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  min-width: 280px;
+}
+
+.wechat-toast.active {
+  top: 20px;
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #07C160;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.toast-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.toast-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}

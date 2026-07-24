@@ -131,10 +131,67 @@ document.addEventListener("DOMContentLoaded", () => {
   renderAll();
   updateClock();
   setInterval(updateClock, 1000);
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
+  replaceIconsWithEmoji();
+  
+  // Register Service Worker for PWA support
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      console.log('✓ Service Worker registered successfully', reg);
+    }).catch(err => {
+      console.log('Service Worker registration failed:', err);
+    });
   }
 });
+
+// Replace Lucide icons with emoji-based placeholders
+function replaceIconsWithEmoji() {
+  const iconMap = {
+    'building-2': '🏢',
+    'smartphone': '📱',
+    'rotate-ccw': '🔄',
+    'wifi': '📶',
+    'battery-charging': '🔋',
+    'edit-3': '✏️',
+    'qr-code': '📲',
+    'more-horizontal': '⋯',
+    'circle-dot': '●',
+    'users': '👥',
+    'chevron-right': '›',
+    'wallet': '💼',
+    'check-square': '☑️',
+    'plus': '➕',
+    'megaphone': '📢',
+    'check-circle-2': '✅',
+    'home': '🏠',
+    'circle-dollar-sign': '💵',
+    'compass': '🧭',
+    'user': '👤',
+    'x': '✕',
+    'bell': '🔔',
+    'check': '✓',
+    'edit-2': '✏️',
+    'trash-2': '🗑️',
+    'building': '🏢',
+    'shield-check': '🛡️',
+    'user-check': '👤',
+    'history': '📜',
+    'user-plus': '👤➕',
+    'share': '📤',
+    'tags': '🏷️',
+    'rotate-ccw': '🔄',
+    'clock': '⏰',
+    'send': '📤',
+    'edit': '✏️',
+    'copy': '📋',
+    'plus-circle': '➕'
+  };
+  
+  document.querySelectorAll('[data-lucide]').forEach(el => {
+    const iconName = el.getAttribute('data-lucide');
+    el.textContent = iconMap[iconName] || '•';
+    el.style.fontStyle = 'normal';
+  });
+}
 
 // State Storage Helpers
 function loadState() {
@@ -217,15 +274,13 @@ function switchTab(tabId) {
     }
   });
 
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
-  }
+  replaceIconsWithEmoji();
 }
 
 // Dynamic Calculation Engine for Multi-Member Debt Balance
 function calculateNetBalance() {
   const memberSpends = {};
-  const memberNetOwed = {};
+  const memberNetOwed = {}; // Positive = owed money, Negative = owes money to group
 
   state.household.members.forEach(m => {
     memberSpends[m] = 0;
@@ -257,10 +312,12 @@ function calculateNetBalance() {
 
 // MAIN RENDER CONTROLLER
 function renderAll() {
+  // Update Header UI
   document.getElementById("top-brand-title").textContent = state.household.name;
   document.getElementById("display-space-name").innerHTML = `${state.household.name} <i data-lucide="edit-3" style="width:12px;height:12px;"></i>`;
   document.getElementById("display-invite-code").textContent = state.household.inviteCode;
 
+  // Render User Switcher Select Options
   const userSelect = document.getElementById("user-role-select");
   userSelect.innerHTML = state.household.members.map(m => `
     <option value="${m}" ${m === state.currentUser ? 'selected' : ''}>${m} (${m === state.household.admin ? '创建人' : '室友'})</option>
@@ -268,21 +325,30 @@ function renderAll() {
 
   document.getElementById("status-current-user-name").textContent = state.currentUser;
 
+  // Compute Financial Balances
   const finCalc = calculateNetBalance();
 
+  // Render Dashboard
   renderDashboard(finCalc);
+
+  // Render Financial Tab
   renderFinanceTab(finCalc);
+
+  // Render Chores Tab
   renderChoresTab();
+
+  // Render Status & Notice Tab
   renderStatusAndNoticesTab();
+
+  // Render Profile Tab
   renderProfileTab();
 
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
-  }
+  replaceIconsWithEmoji();
 }
 
 // Render Dashboard Tab
 function renderDashboard(fin) {
+  // 1. Status Grid
   const statusGrid = document.getElementById("dashboard-status-grid");
   statusGrid.innerHTML = state.household.members.map(m => {
     const st = state.membersStatus[m] || { status: "🏠 在家", returnTime: "", updateTime: "刚才" };
@@ -298,6 +364,7 @@ function renderDashboard(fin) {
     `;
   }).join("");
 
+  // 2. Financial Banner
   const heroText = document.getElementById("dash-settlement-text");
   const heroSubtext = document.getElementById("dash-settlement-subtext");
   const badge = document.getElementById("dash-fin-badge");
@@ -329,6 +396,7 @@ function renderDashboard(fin) {
     }
   }
 
+  // Spend Row
   const spendRow = document.getElementById("dash-member-spend-row");
   spendRow.innerHTML = state.household.members.map((m, idx) => `
     ${idx > 0 ? '<div class="stat-divider"></div>' : ''}
@@ -338,6 +406,7 @@ function renderDashboard(fin) {
     </div>
   `).join("");
 
+  // 3. Task Quick List
   const dashTaskList = document.getElementById("dashboard-task-list");
   const pendingTasks = state.tasks.filter(t => !t.completed).slice(0, 3);
   if (pendingTasks.length === 0) {
@@ -359,6 +428,7 @@ function renderDashboard(fin) {
     `).join("");
   }
 
+  // 4. Notice Preview
   const noticePreview = document.getElementById("dashboard-notice-preview");
   if (state.notices.length > 0) {
     const topNotice = state.notices[0];
@@ -407,6 +477,7 @@ function renderFinanceTab(fin) {
     }
   }
 
+  // Expense List Filtering
   const expContainer = document.getElementById("expense-list");
   let filtered = state.expenses;
   if (currentExpenseFilter === "unsettled") {
@@ -480,6 +551,7 @@ function handleSettleUp() {
     recordText = `${m1} 已成功还款给 ${m2} $${Math.abs(net1).toFixed(2)}`;
   }
 
+  // Mark all expenses as settled
   state.expenses.forEach(e => e.status = "settled");
 
   saveState();
@@ -495,7 +567,7 @@ function filterExpenses(type, btnElem) {
   renderAll();
 }
 
-// Render Chores Tab
+// Render Chores Tab (Pills order: 全部任务 -> 任何人可领 -> 我的任务)
 function renderChoresTab() {
   const filterPillsContainer = document.getElementById("chores-filter-pills");
   filterPillsContainer.innerHTML = `
@@ -532,7 +604,7 @@ function renderChoresTab() {
                   </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
-                  <button class="icon-circle-btn" onclick="openEditTaskModal('${t.id}')" title="调整截止日期/时间/负责人" style="width:22px;height:22px;"><i data-lucide="edit-2" style="width:14px;height:14px;"></i></button>
+                  <button class="icon-circle-btn" onclick="openEditTaskModal('${t.id}')" title="调整截止日期/时间/负责人" style="width:22px;height:22px;"><i data-lucide="edit-2" style="width:11px;height:11px;"></i></button>
                   <span class="task-assignee-badge ${t.assignee === '任何人' ? 'anyone' : t.assignee === 'Roommate' ? 'roommate' : ''}">${t.assignee}</span>
                   ${t.assignee === '任何人' ? `<button class="nudge-btn" onclick="claimTask('${t.id}')">认领</button>` : t.assignee !== state.currentUser && !t.completed ? `<button class="nudge-btn" onclick="nudgeTask('${t.title}', '${t.assignee}')">催催</button>` : ''}
                 </div>
@@ -544,13 +616,14 @@ function renderChoresTab() {
     `;
   }
 
+  // Render Activity Log
   const logContainer = document.getElementById("task-activity-log");
   if (state.taskLog.length === 0) {
     logContainer.innerHTML = `<div style="font-size:12px;color:#8E8E93;">暂无打卡与变更日志</div>`;
   } else {
     logContainer.innerHTML = state.taskLog.slice(0, 8).map(l => `
       <div class="timeline-item">
-        <i data-lucide="${l.text.includes('认领') ? 'user-check' : l.text.includes('取消') ? 'rotate-ccw' : 'check-circle'}" style="width:16px;height:16px;color:${l.text.includes('取消') ? '#FF3B30' : '#34C759'};"></i>
+        <i data-lucide="${l.text.includes('认领') ? 'user-check' : l.text.includes('取消') ? 'rotate-ccw' : 'check-circle'}" style="width:16px;height:16px;color:${l.text.includes('取消') ? '#FF9500' : '#34C759'};"></i>
         <div class="timeline-text">${l.text}</div>
         <div class="timeline-time">${l.time}</div>
       </div>
@@ -563,7 +636,7 @@ function filterTasks(type, btnElem) {
   renderAll();
 }
 
-// Claim Task Function
+// Claim Task Function (Assigns to current user & shifts to My Tasks)
 function claimTask(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
@@ -579,10 +652,10 @@ function claimTask(taskId) {
   });
 
   saveState();
-  showWeChatToast("任务认领成功 🧹", `"${task.title}"已放入"我的任务"，负责人修改为 ${state.currentUser}`);
+  showWeChatToast("任务认领成功 🧹", `“${task.title}”已放入“我的任务”，负责人修改为 ${state.currentUser}`);
 }
 
-// Toggle Task Completion
+// Toggle Task Completion & Log Unchecking
 function toggleTaskCompletion(taskId) {
   const task = state.tasks.find(t => t.id === taskId);
   if (!task) return;
@@ -596,23 +669,24 @@ function toggleTaskCompletion(taskId) {
       time: timeStr,
       text: `${state.currentUser} 完成了任务: ${task.title}`
     });
-    showWeChatToast("家务打卡成功 🎉", `你已完成"${task.title}"`);
+    showWeChatToast("家务打卡成功 🎉", `你已完成“${task.title}”`);
   } else {
     state.taskLog.unshift({
       time: timeStr,
       text: `${state.currentUser} 取消勾选了任务: ${task.title} (重新开放)`
     });
-    showWeChatToast("取消完成状态 🔄", `"${task.title}"已重置为待办状态`);
+    showWeChatToast("取消完成状态 🔄", `“${task.title}”已重置为待办状态`);
   }
   saveState();
 }
 
 function nudgeTask(title, assignee) {
-  showWeChatToast("催催提醒 🔔", `已向 ${assignee} 发送提醒: 请尽快完成"${title}"`);
+  showWeChatToast("催催提醒 🔔", `已向 ${assignee} 发送提醒: 请尽快完成“${title}”`);
 }
 
-// Render Status & Notice Tab
+// Render Status & Notice Tab (with Delete button on chips & optional return time toggle)
 function renderStatusAndNoticesTab() {
+  // Status Selector Grid Buttons
   const grid = document.getElementById("status-options-grid");
   grid.innerHTML = state.statusOptions.map(st => `
     <div class="status-chip-wrapper">
@@ -623,9 +697,11 @@ function renderStatusAndNoticesTab() {
     </div>
   `).join("");
 
+  // Time picker input enable state
   const timeInput = document.getElementById("return-time-input");
   timeInput.disabled = !isTimeEnabled;
 
+  // Full Status List
   const fullStatusList = document.getElementById("full-status-list");
   fullStatusList.innerHTML = state.household.members.map(m => {
     const st = state.membersStatus[m] || { status: "🏠 在家", returnTime: "", updateTime: "刚才" };
@@ -643,6 +719,7 @@ function renderStatusAndNoticesTab() {
     `;
   }).join("");
 
+  // Notice List
   const noticeList = document.getElementById("notice-list");
   if (state.notices.length === 0) {
     noticeList.innerHTML = `<div style="text-align:center;padding:16px;color:#8E8E93;font-size:13px;">暂无任何告示</div>`;
@@ -671,13 +748,13 @@ function selectStatus(statusStr) {
 }
 
 function deleteStatus(statusStr) {
-  if (confirm(`确认删除状态选项"${statusStr}"吗？`)) {
+  if (confirm(`确认删除状态选项“${statusStr}”吗？`)) {
     state.statusOptions = state.statusOptions.filter(s => s !== statusStr);
     if (selectedStatusChip === statusStr) {
       selectedStatusChip = state.statusOptions[0] || "🏠 在家";
     }
     saveState();
-    showWeChatToast("状态已移除", `已删除状态选项"${statusStr}"`);
+    showWeChatToast("状态已移除", `已删除状态选项“${statusStr}”`);
   }
 }
 
@@ -720,9 +797,7 @@ function renderProfileTab() {
 function openModal(id) {
   const modal = document.getElementById(id);
   if (modal) modal.classList.add("active");
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
-  }
+  replaceIconsWithEmoji();
 }
 
 function closeModal(id) {
@@ -731,6 +806,7 @@ function closeModal(id) {
 }
 
 function openAddExpenseModal() {
+  // Populate category select & member checkboxes
   const catSelect = document.getElementById("exp-category");
   catSelect.innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join("");
 
@@ -748,7 +824,7 @@ function openAddExpenseModal() {
   openModal("modal-add-expense");
 }
 
-// Dynamic Split Amount Preview
+// Dynamic Split Amount Preview Hint Calculation
 function updateSplitPreview() {
   const amountVal = parseFloat(document.getElementById("exp-amount").value) || 0;
   const checkedChks = document.querySelectorAll(".part-chk:checked");
@@ -772,6 +848,7 @@ function openAddTaskModal() {
     ${state.household.members.map(m => `<option value="${m}">${m}</option>`).join("")}
   `;
 
+  // Default date to today
   const todayStr = new Date().toISOString().split('T')[0];
   document.getElementById("task-deadline-date").value = todayStr;
 
@@ -813,12 +890,12 @@ function handleEditTaskSubmit(e) {
   const timeStr = `${now.getMonth()+1}月${now.getDate()}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   state.taskLog.unshift({
     time: timeStr,
-    text: `${state.currentUser} 调整了任务"${task.title}"的截止时间与负责人 (${task.assignee})`
+    text: `${state.currentUser} 调整了任务“${task.title}”的截止时间与负责人 (${task.assignee})`
   });
 
   saveState();
   closeModal("modal-edit-task");
-  showWeChatToast("任务调整保存 ✏️", `已成功修改"${task.title}"的截止日期与负责人`);
+  showWeChatToast("任务调整保存 ✏️", `已成功修改“${task.title}”的截止日期与负责人`);
 }
 
 function openAddNoticeModal() { openModal("modal-add-notice"); }
@@ -835,13 +912,11 @@ function renderCategoryManageList() {
       ${state.categories.length > 1 ? `<button class="cat-del-btn" onclick="deleteCategory('${c}')" title="删除分类"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>` : ''}
     </div>
   `).join("");
-  if (typeof lucide !== 'undefined') {
-    lucide.createIcons();
-  }
+  replaceIconsWithEmoji();
 }
 
 function deleteCategory(catName) {
-  if (confirm(`确认删除分类"${catName}"吗？`)) {
+  if (confirm(`确认删除分类“${catName}”吗？`)) {
     state.categories = state.categories.filter(c => c !== catName);
     saveState();
     renderCategoryManageList();
@@ -923,7 +998,7 @@ function handleAddTaskSubmit(e) {
   saveState();
   closeModal("modal-add-task");
   e.target.reset();
-  showWeChatToast("任务已发布 🧹", `已发布任务"${title}" (${assignee}) 截止时间: ${deadlineDate} ${deadlineTime}`);
+  showWeChatToast("任务已发布 🧹", `已发布任务“${title}” (${assignee}) 截止时间: ${deadlineDate} ${deadlineTime}`);
 }
 
 function handleAddNoticeSubmit(e) {
@@ -977,7 +1052,7 @@ function handleRenameSpace(e) {
     state.household.name = newName;
     saveState();
     closeModal("modal-rename-space");
-    showWeChatToast("名称修改成功 🏠", `家庭空间名称改为: ${newName}`);
+    showWeChatToast("名称修改成功 🏠", `家庭空间名称改名位: ${newName}`);
   }
 }
 
@@ -986,68 +1061,97 @@ function handleRenameMember(e) {
   const newName = document.getElementById("rename-member-input").value.trim();
   if (newName) {
     const oldName = state.currentUser;
-    state.currentUser = newName;
+    const idx = state.household.members.indexOf(oldName);
+    if (idx !== -1) {
+      state.household.members[idx] = newName;
+    }
+    if (state.household.admin === oldName) state.household.admin = newName;
+
+    // Migrate statuses
     if (state.membersStatus[oldName]) {
       state.membersStatus[newName] = state.membersStatus[oldName];
       delete state.membersStatus[oldName];
     }
-    state.household.members = state.household.members.map(m => m === oldName ? newName : m);
-    if (state.household.admin === oldName) state.household.admin = newName;
+    state.currentUser = newName;
+
     saveState();
     closeModal("modal-rename-member");
-    showWeChatToast("昵称修改成功 👤", `用户名已更改为: ${newName}`);
+    showWeChatToast("昵称修改成功 👤", `你的昵称已修改为: ${newName}`);
   }
 }
 
-function handleAddMember(e) {
+function handleAddMemberSubmit(e) {
   e.preventDefault();
-  const newMember = document.getElementById("new-member-input").value.trim();
-  if (newMember && !state.household.members.includes(newMember)) {
-    state.household.members.push(newMember);
-    state.membersStatus[newMember] = { status: "🏠 在家", returnTime: "", updateTime: "刚才" };
+  const name = document.getElementById("add-member-name-input").value.trim();
+  if (name && !state.household.members.includes(name)) {
+    state.household.members.push(name);
+    state.membersStatus[name] = { status: "🏠 在家", returnTime: "--:--", updateTime: "新加入" };
     saveState();
     closeModal("modal-add-member");
-    e.target.reset();
-    showWeChatToast("新成员已添加 👥", `已邀请 ${newMember} 加入房间`);
+    showWeChatToast("新室友加入 🤝", `已成功添加室友: ${name}`);
+  }
+}
+
+function switchSpaceTab(type) {
+  const createForm = document.getElementById("form-create-space");
+  const joinForm = document.getElementById("form-join-space");
+  const btnCreate = document.getElementById("tab-btn-create");
+  const btnJoin = document.getElementById("tab-btn-join");
+
+  if (type === "create") {
+    createForm.style.display = "block";
+    joinForm.style.display = "none";
+    btnCreate.classList.add("active");
+    btnJoin.classList.remove("active");
+  } else {
+    createForm.style.display = "none";
+    joinForm.style.display = "block";
+    btnJoin.classList.add("active");
+    btnCreate.classList.remove("active");
   }
 }
 
 function handleCreateSpace(e) {
   e.preventDefault();
-  const spaceName = document.getElementById("space-name-input").value.trim();
-  const inviteCode = document.getElementById("invite-code-input").value.trim();
-  
-  if (spaceName && inviteCode) {
-    state.household.name = spaceName;
-    state.household.inviteCode = inviteCode;
-    saveState();
-    closeModal("modal-create-space");
-    e.target.reset();
-    showWeChatToast("空间已创建 🏠", `已创建新空间: ${spaceName}`);
-  }
+  const name = document.getElementById("new-space-name").value;
+  const newCode = "AAA" + Math.floor(100 + Math.random() * 900);
+  state.household.name = name;
+  state.household.inviteCode = newCode;
+  saveState();
+  closeModal("modal-create-space");
+  showWeChatToast("新空间创建成功 🏠", `已创建 ${name}，邀请码: ${newCode}`);
 }
 
-// WeChat Toast Notification
-function showWeChatToast(title, message) {
-  const toastContainer = document.getElementById("wechat-toast-container") || createToastContainer();
-  const toast = document.createElement("div");
-  toast.className = "wechat-toast";
-  toast.innerHTML = `<strong>${title}</strong><p>${message}</p>`;
-  toastContainer.appendChild(toast);
-
-  setTimeout(() => toast.remove(), 3000);
+function handleJoinSpace(e) {
+  e.preventDefault();
+  const code = document.getElementById("join-invite-code").value.trim();
+  if (!code) return;
+  state.household.inviteCode = code.toUpperCase();
+  saveState();
+  closeModal("modal-create-space");
+  showWeChatToast("已加入空间 🔑", `成功加入邀请码为 ${code.toUpperCase()} 的家庭空间`);
 }
 
-function createToastContainer() {
-  const container = document.createElement("div");
-  container.id = "wechat-toast-container";
-  container.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-  `;
-  document.body.appendChild(container);
-  return container;
+function copyInviteCode() {
+  navigator.clipboard.writeText(state.household.inviteCode).then(() => {
+    showWeChatToast("已复制到剪贴板 📋", `邀请码 ${state.household.inviteCode} 已复制，可直接粘贴发给室友`);
+  }).catch(() => {
+    showWeChatToast("邀请码", state.household.inviteCode);
+  });
+}
+
+function simulateWeChatSubscribe() {
+  showWeChatToast("微信订阅成功 🔔", "已开启室友晚回、家务到期与催催消息提醒");
+}
+
+// Simulated WeChat Notification Toast
+function showWeChatToast(title, desc) {
+  const toast = document.getElementById("wechat-toast");
+  document.getElementById("toast-title").textContent = title;
+  document.getElementById("toast-desc").textContent = desc;
+
+  toast.classList.add("active");
+  setTimeout(() => {
+    toast.classList.remove("active");
+  }, 3200);
 }
