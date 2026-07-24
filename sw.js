@@ -1,77 +1,120 @@
 /**
  * Service Worker for AAA YVR 办事处 PWA
- * Enables offline functionality and caching
+ * Enables offline functionality, caching, and background sync
  */
 
 const CACHE_NAME = 'aaa-yvr-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/style.css',
-  '/manifest.json'
+const RUNTIME_CACHE = 'aaa-yvr-runtime-v1';
+const ASSETS_TO_CACHE = [
+  '/daisys-secret-place/',
+  '/daisys-secret-place/index.html',
+  '/daisys-secret-place/app.js',
+  '/daisys-secret-place/style.css',
+  '/daisys-secret-place/manifest.json'
 ];
 
-// Install event: cache essential files
+// Install: Cache essential assets on first install
 self.addEventListener('install', event => {
+  console.log('[ServiceWorker] Installing...');
+  
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(urlsToCache).catch(err => {
-        console.log('Partial cache failed, continuing with available resources:', err);
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[ServiceWorker] Caching app shell');
+        return cache.addAll(ASSETS_TO_CACHE).catch(err => {
+          console.log('[ServiceWorker] Some assets failed to cache:', err);
+        });
+      })
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate event: clean up old caches
+// Activate: Clean up old caches
 self.addEventListener('activate', event => {
+  console.log('[ServiceWorker] Activating...');
+  
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then(cacheNames => {
+        return Promise.all(
+          cacheNames
+            .filter(name => name !== CACHE_NAME && name !== RUNTIME_CACHE)
+            .map(name => {
+              console.log('[ServiceWorker] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      })
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch event: serve from cache, fallback to network
+// Fetch: Network-first for HTML, cache-first for assets
 self.addEventListener('fetch', event => {
+  const { request } = event;
+  const url = new URL(request.url);
+  
   // Skip non-GET requests
-  if (event.request.method !== 'GET') {
+  if (request.method !== 'GET') {
     return;
   }
-
-  event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) {
-        return response;
-      }
-
-      return fetch(event.request).then(response => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
+  
+  // Skip chrome extensions
+  if (url.protocol === 'chrome-extension:') {
+    return;
+  }
+  
+  // HTML pages: network-first
+  if (request.headers.get('Accept')?.includes('text/html') || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const cacheName = RUNTIME_CACHE;
+            caches.open(cacheName).then(cache => {
+              cache.put(request, response.clone());
+            });
+          }
           return response;
+        })
+        .catch(() => {
+          return caches.match(request).then(cached => {
+            return cached || caches.match('/daisys-secret-place/index.html');
+          });
+        })
+    );
+    return;
+  }
+  
+  // Assets (JS, CSS, images): cache-first
+  event.respondWith(
+    caches.match(request)
+      .then(cached => {
+        if (cached) {
+          return cached;
         }
-
-        // Clone and cache successful responses
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseToCache);
-        });
-
-        return response;
-      }).catch(err => {
-        console.log('Fetch failed, returning offline fallback:', err);
-        // Return cached index.html as fallback
-        return caches.match('/index.html');
-      });
-    })
+        
+        return fetch(request)
+          .then(response => {
+            if (!response || response.status !== 200 || response.type === 'error') {
+              return response;
+            }
+            
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then(cache => {
+              cache.put(request, responseClone);
+            });
+            
+            return response;
+          })
+          .catch(err => {
+            console.log('[ServiceWorker] Fetch failed for:', url.href, err);
+            return new Response('Offline - resource not available', {
+              status: 503,
+              statusText: 'Service Unavailable'
+            });
+          });
+      })
   );
 });
 

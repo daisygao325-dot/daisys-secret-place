@@ -1,30 +1,103 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <!-- Basic Meta Tags -->
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  
+  <!-- PWA & Web App Meta Tags -->
   <meta name="theme-color" content="#007AFF">
-  <meta name="description" content="AAA YVR 办事处 - 室友生活管理系统。共享账本、家务管理、状态更新、公告栏。">
+  <meta name="description" content="AAA YVR 办事处 - 室友共享账本、家务管理、状态更新、公告栏。完全离线可用。">
+  
+  <!-- Apple iOS Web App Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="AAA YVR">
-  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDE4MCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiBmaWxsPSIjMDA3QUZGIiByeD0iNDUiLz4KPHR0ZXh0IHg9IjkwIiB5PSI5MCIgZm9udC1zaXplPSI5MCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+QUFBPC90ZXh0Pgo8L3N2Zz4=" />
-  <link rel="manifest" href="manifest.json">
-  <title>AAA YVR 办事处 - 室友生活管理</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="apple-itunes-app" content="app-id=0">
+  
+  <!-- Prevent zoom and scaling issues -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="fullscreen" content="yes">
+  
+  <!-- Icon & Manifest Links -->
+  <link rel="manifest" href="/daisys-secret-place/manifest.json">
+  <link rel="icon" type="image/x-icon" href="/daisys-secret-place/favicon.ico">
+  
+  <!-- Apple Touch Icons (Multiple sizes for different devices) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDE4MCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiBmaWxsPSIjMDA3QUZGIiByeD0iNDAiLz4KPHR0ZXh0IHg9IjkwIiB5PSIxMDAiIGZvbnQtc2l6ZT0iMTAwIiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkFBQTwvdGV4dD4KPC9zdmc+">
+  <link rel="apple-touch-icon" sizes="120x120" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiBmaWxsPSIjMDA3QUZGIiByeD0iMjUiLz4KPHR0ZXh0IHg9IjYwIiB5PSI3MCIgZm9udC1zaXplPSI2NiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BQUE8L3RleHQ+Cjwvc3ZnPg==">
+  <link rel="apple-touch-icon" sizes="152x152" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUyIiBoZWlnaHQ9IjE1MiIgdmlld0JveD0iMCAwIDE1MiAxNTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTIiIGhlaWdodD0iMTUyIiBmaWxsPSIjMDA3QUZGIiByeD0iMzAiLz4KPHR0ZXh0IHg9Ijc2IiB5PSI4OCIgZm9udC1zaXplPSI4OCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BQUE8L3RleHQ+Cjwvc3ZnPg==">
+  <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDE4MCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiBmaWxsPSIjMDA3QUZGIiByeD0iNDAiLz4KPHR0ZXh0IHg9IjkwIiB5PSIxMDAiIGZvbnQtc2l6ZT0iMTAwIiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkFBQTwvdGV4dD4KPC9zdmc+">
+  
+  <!-- Splash Screens for iPhone (Safari) -->
+  <link rel="apple-touch-startup-image" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjExMzYiIHZpZXdCb3g9IjAgMCA2NDAgMTEzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSIxMTM2IiBmaWxsPSIjRjJGMkY3Ii8+Cjwvc3ZnPg==" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)">
+  
+  <!-- Title -->
+  <title>AAA YVR 办事处</title>
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/daisys-secret-place/style.css">
+  
   <style>
-    /* Inline icon placeholder styles */
+    /* Mobile-First PWA Styles */
+    * {
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #F2F2F7;
+      color: #1C1C1E;
+      overflow: hidden;
+    }
+    
+    /* Full viewport coverage */
+    html, body {
+      width: 100%;
+      height: 100%;
+      -webkit-user-scalable: no;
+    }
+    
+    /* Hide address bar on mobile */
+    body {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Safe area support for notch */
+    @supports (padding: max(0px)) {
+      .app-wrapper {
+        padding-top: max(12px, env(safe-area-inset-top));
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        padding-left: max(0, env(safe-area-inset-left));
+        padding-right: max(0, env(safe-area-inset-right));
+      }
+    }
+    
+    /* Icon placeholder emoji */
     [data-lucide] {
       display: inline-block;
       width: 1em;
       height: 1em;
       vertical-align: -0.125em;
-      fill: currentColor;
-      font-family: sans-serif;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
       font-size: 16px;
-      font-weight: bold;
       text-align: center;
       line-height: 1;
+    }
+    
+    /* Prevent scrolling on body */
+    .ios-body {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
     }
   </style>
 </head>
